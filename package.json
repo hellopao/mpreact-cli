@@ -1,0 +1,52 @@
+{
+    "name": "mpreact-cli",
+    "version": "0.0.1",
+    "description": "cli for mpreact",
+    "files": [
+      "./bin/index.js",
+      "./lib/**/*.js",
+      "./assets/**/*",
+      "./test/src/**/*"
+    ],
+    "bin": "./bin/index.js",
+    "main": "./lib/index.js",
+    "scripts": {
+      "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "keywords": [
+      "mpreact",
+      "cli",
+      "build"
+    ],
+    "author": "qinjia@outlook.com",
+    "license": "ISC",
+    "dependencies": {
+      "@types/glob": "^5.0.35",
+      "babel-generator": "^6.26.1",
+      "babel-traverse": "^6.26.0",
+      "babel-types": "^6.26.0",
+      "babylon": "^6.18.0",
+      "chalk": "^2.3.2",
+      "chokidar": "^2.0.3",
+      "commander": "^2.15.1",
+      "dependency-tree": "^6.0.1",
+      "fs-extra": "^5.0.0",
+      "glob": "^7.1.2",
+      "less": "^3.0.1",
+      "mpreact": "^0.0.1",
+      "node-sass": "^4.8.3",
+      "rollup": "^0.57.1",
+      "rollup-plugin-typescript": "^0.8.1",
+      "ts-simple-ast": "^9.4.1",
+      "typescript": "^2.7.2"
+    },
+    "devDependencies": {
+      "@types/babel-generator": "^6.25.1",
+      "@types/babel-traverse": "^6.25.3",
+      "@types/babel-types": "^7.0.1",
+      "@types/babylon": "^6.16.2",
+      "@types/chokidar": "^1.7.5",
+      "@types/fs-extra": "^5.0.1",
+      "@types/node": "^9.4.7"
+    }
+  }

@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "esnext",                          
+    "module": "commonjs",                     
+    "jsx": "preserve",                     
+    "sourceMap": true,
+    "outDir": "./lib",
+    "experimentalDecorators": true,
+    "allowSyntheticDefaultImports": true
+  },
+  "exclude": [
+    "./test/**",
+    "./node_modules/**"
+  ],
+  "include": [
+    "./src/**/*"
+  ],
+}
