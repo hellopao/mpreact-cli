@@ -41,7 +41,7 @@ export async function init(project: string, dist: string, language: string = "ts
 }
 
 // build({
-//     src: "./test/src/js",
-//     dist: "./test/dist/js",
+//     src: "./test/src/component",
+//     dist: "./test/dist/component",
 //     watch: true
 // })

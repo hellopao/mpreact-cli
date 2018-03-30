@@ -110,7 +110,7 @@ export default class Compiler {
         const fileModules = this.fileModules.map(item => item.id);
         const files = await this.getProjectFiles();
         for (let item of files) {
-            if (!fileModules.includes(item)) {
+            if (!fileModules.includes(item) && path.basename(item) !== "tsconfig.json") {
                 await fs.copy(item, path.join(this.dist, path.relative(this.src, item)))
             }
         }

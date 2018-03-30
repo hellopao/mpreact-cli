@@ -1,6 +1,6 @@
 import * as path from "path";
 import * as fs from "fs-extra";
-import * as sass from "node-sass";
+import * as sass from "sass";
 
 import * as config from "../../config";
 

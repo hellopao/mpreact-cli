@@ -16,6 +16,6 @@ export default class TestApp extends WxApp {
             }, time)
         });
         await sleep(1000);
-        console.log('dang~ dang~ dang~ dang~')
+        console.log('dang~ dang~ dang~')
     }
 }
