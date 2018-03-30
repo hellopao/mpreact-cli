@@ -43,12 +43,22 @@ export default class Component extends Transformer {
         let code = this.transpileTsCode();
         let properties = '', events = '';
         Object.keys(props).forEach(item => {
+            let type, value;
+            const prop = props[item];
+            // types constructor
+            if (typeof prop === "function") {
+                type = prop.name; 
+                value = null;
+            } else {
+                type = (prop === undefined || prop === null) ? 'Object' : prop.constructor.name;
+                value = JSON.stringify(prop);
+            }
             properties +=
             `${item}: {
-                type: ${props[item].name},
-                value: null,
+                type: ${type},
+                value: ${value},
                 observer: function(val, oldVal) { this._onPropsChange('${item}', val, oldVal)}
-            },`
+            },`        
         });
         eventHandlers.forEach(item => {
             events += 
@@ -67,9 +77,10 @@ export default class Component extends Transformer {
                 },
                 attached: function(options) {
                     const component = new ${ctor}(this, options);
-                    component.data && this.setData(component.data);
-                    component.mounted && component.mounted();
-                    this._component = component;
+                    component.setState(component.state || {}, () => {
+                        component.mounted && component.mounted();
+                        this._component = component;
+                    })
                 },
                 methods: {
                     ${events}
