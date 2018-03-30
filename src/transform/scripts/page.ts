@@ -43,7 +43,7 @@ export default class Page extends Transformer {
                     const page = new ${ctor}(this, options);
 
                     // 设置默认值
-                    page.setState(page.defaultData || {}, () => {
+                    page.setState(page.state || {}, () => {
                         page.title && page.setTitle(page.title);
                         page.mounted && page.mounted();
                     })
