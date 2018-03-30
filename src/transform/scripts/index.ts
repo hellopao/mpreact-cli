@@ -22,7 +22,7 @@ export default abstract class Transformer {
         const project = new Project({
             compilerOptions: {
                 allowJs: true,
-                module: ts.ModuleKind.ESNext,
+                module: ts.ModuleKind.CommonJS,
                 target: ts.ScriptTarget.ES5,
                 jsx: ts.JsxEmit.Preserve,
                 importHelpers: true
