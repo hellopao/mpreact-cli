@@ -34,4 +34,4 @@
 
  * -w
     
-  build project when watching file changes
+  	run in watch mode. 
