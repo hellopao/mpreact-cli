@@ -5,6 +5,11 @@
   "bin": {
     "mpreact": "./bin/index.js"
   },
+  "files": [
+    "lib",
+    "bin",
+    "assets"
+  ],
   "main": "./lib/index.js",
   "scripts": {
     "build": "node node_modules/typescript/bin/tsc --skipLibCheck"
