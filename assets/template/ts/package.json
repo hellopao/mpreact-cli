@@ -4,8 +4,8 @@
   "description": "mpreact ts example",
   "main": "index.js",
   "scripts": {
-    "build": "mpreact-cli build -s src -d dist",
-    "dev": "mpreact-cli build -s src -d dist -w"
+    "build": "mpreact build -s src -d dist",
+    "dev": "mpreact build -s src -d dist -w"
   },
   "keywords": [
   ],
