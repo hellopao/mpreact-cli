@@ -33,7 +33,7 @@ export async function build(options: { src: string; dist: string; watch?: boolea
 export async function init(project: string, dist: string, language: string = "ts") {
     try {
         language = language == "js" ? "js" : "ts";
-        await fs.copy(path.join(__dirname, `../assets/template/${language}`), path.join(dist, `/${project}/src`));
+        await fs.copy(path.join(__dirname, `../assets/template/${language}`), path.join(dist, `/${project}`));
         process.stdout.write(`项目${project}初始化完成`)
     } catch (err) {
         process.stderr.write(`项目${project}初始化失败, ${err.message}`);
