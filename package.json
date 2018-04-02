@@ -2,12 +2,6 @@
   "name": "mpreact-cli",
   "version": "0.0.2",
   "description": "cli for mpreact",
-  "files": [
-    "./bin/index.js",
-    "./lib/**/*.js",
-    "./assets/**/*",
-    "./test/src/**/*"
-  ],
   "bin": {
     "mpreact": "./bin/index.js"
   },
