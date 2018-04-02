@@ -13,13 +13,13 @@
  ### init project
 
  ```bash
- mpreact-cli init example
+ mpreact init example
  ```
 
  ### build project
 
  ```bash
- mpreact-cli build -s example/src -d example/dist
+ mpreact build -s example/src -d example/dist
  ```
 
 ## options
