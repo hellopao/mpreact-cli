@@ -8,7 +8,9 @@
     "./assets/**/*",
     "./test/src/**/*"
   ],
-  "bin": "./bin/index.js",
+  "bin": {
+    "mpreact": "./bin/index.js"
+  },
   "main": "./lib/index.js",
   "scripts": {
     "build": "node node_modules/typescript/bin/tsc --skipLibCheck"
