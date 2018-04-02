@@ -26,12 +26,12 @@
 
  ### init
 
- . -l
+ * -l
   
   language for project: ts/js, default to ts
 
 ### build
 
- . -w
+ * -w
     
   build project when watching file changes
