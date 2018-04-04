@@ -1,0 +1,19 @@
+{
+  "name": "example",
+  "version": "0.0.1",
+  "description": "mpreact ts example",
+  "main": "index.js",
+  "scripts": {
+    "build": "mpreact build -s src -d dist",
+    "dev": "mpreact build -s src -d dist -w"
+  },
+  "keywords": [
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "mpreact": "^0.0.1"
+  },
+  "devDependencies": {
+  }
+}

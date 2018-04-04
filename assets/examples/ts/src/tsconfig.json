@@ -1,0 +1,9 @@
+{
+  "compilerOptions": {
+    "target": "esnext",                          
+    "module": "commonjs",                     
+    "jsx": "preserve",                     
+    "strict": false,                        
+     "experimentalDecorators": true        
+  }
+}
