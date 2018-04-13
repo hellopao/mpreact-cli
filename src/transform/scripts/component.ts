@@ -1,5 +1,5 @@
 import * as vm from "vm";
-import Project, {PropertyDeclaration, SyntaxKind} from "ts-simple-ast";
+import Project, { PropertyDeclaration, SyntaxKind } from "ts-simple-ast";
 
 import Transformer from "./";
 import * as jsxParser from "../lib/jsxParser";
@@ -36,10 +36,34 @@ export default class Component extends Transformer {
         return jsxParser.getJsxEvents(jsx, { props: ["state", "props"] });
     }
 
+    transformCustomEvents(props: any = {}) {
+        const events = Object.keys(props).filter(item => props[item].name === 'Function');
+        events.forEach(event => {
+            const moduleCtor = this.sourceFile.getClasses()[0];
+            const methods = moduleCtor.getMethods() || [];
+            methods.forEach(item => {
+                const expressions = item.getBody().getDescendantsOfKind(SyntaxKind.CallExpression);
+                expressions.forEach(expression => {
+                    try {
+                        if (expression.getExpression().getText() === `this.props.${event}`) {
+                            const pos = expression.getPos(), end = expression.getEnd(), args = expression.getArguments().map(item => item.getText());
+                            expression.replaceWithText(
+                                `this.component.triggerEvent("${event.replace(/^on/, '').toLowerCase()}", ${args.toString()})`)
+                        }
+                    } catch (err) {
+
+                    }
+                })
+            })
+
+        })
+    }
+
     getScriptCode() {
         const ctor = this.getModuleConstructor();
         const props = this.getComponentProps();
         const eventHandlers = this.getEventHandlers();
+        this.transformCustomEvents(props);
         let code = this.transpileTsCode();
         let properties = '', events = '';
         Object.keys(props).forEach(item => {
@@ -47,24 +71,27 @@ export default class Component extends Transformer {
             const prop = props[item];
             // types constructor
             if (typeof prop === "function") {
-                type = prop.name; 
+                type = prop.name;
                 value = null;
             } else {
                 type = (prop === undefined || prop === null) ? 'Object' : prop.constructor.name;
                 value = JSON.stringify(prop);
             }
-            properties +=
-            `${item}: {
-                type: ${type},
-                value: ${value},
-                observer: function(val, oldVal) { this._onPropsChange('${item}', val, oldVal)}
-            },`        
+
+            if (type !== 'Function') {
+                properties +=
+                    `${item}: {
+                    type: ${type},
+                    value: ${value},
+                    observer: function(val, oldVal) { this._onPropsChange('${item}', val, oldVal)}
+                },`
+            }
         });
         eventHandlers.forEach(item => {
-            events += 
-            `${item}: function(e) {
+            events +=
+                `${item}: function(e) {
                 try {
-                    this._component["${item}"] && this._component["${item}"](e);
+                    this._component["${item}"] && this._component["${item}"].bind(this._component)(e);
                 } catch (err) {
                 }
                 return false;
@@ -75,12 +102,12 @@ export default class Component extends Transformer {
                 properties: {
                     ${properties}
                 },
-                attached: function(options) {
-                    const component = new ${ctor}(this, options);
+                attached: function() {
+                    const component = new ${ctor}(this);
+                    this._component = component;
                     component.setState(component.state || {}, () => {
                         component.mounted && component.mounted();
-                        this._component = component;
-                    })
+                    });
                 },
                 methods: {
                     ${events}
@@ -88,7 +115,7 @@ export default class Component extends Transformer {
                         type = type.charAt(0).toUpperCase() + type.slice(1);
                         try {
                             const observer = this._component['on' + type + 'Change'];
-                            observer && observer(val, oldVal);
+                            observer && observer.bind(this._component)(val, oldVal);
                         } catch (err) {
                         }
                     }  
@@ -129,6 +156,7 @@ export default class Component extends Transformer {
                 TypeLiteral: Object,
                 TypeReference: Object,
                 ObjectKeyword: Object,
+                FunctionType: Function,
             }[kind] || Object;
         }
         return props;
