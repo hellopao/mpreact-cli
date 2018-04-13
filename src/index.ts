@@ -1,12 +1,20 @@
 import * as fs from "fs-extra";
 import * as path from "path";
 import * as chokidar from "chokidar";
+import chalk from "chalk";
 
 import Compiler from "./build";
 
-export async function build(options: { src: string; dist: string; watch?: boolean; ignores?: string[]; watchIgnore?: RegExp }) {
+export async function build(options: { src: string; dist: string; root?: string; watch?: boolean; ignores?: string[]; watchIgnore?: RegExp }) {
     const cwd = process.cwd();
-    const compiler = new Compiler(path.join(cwd, options.src), path.join(cwd, options.dist), cwd);
+    let src = path.join(cwd, options.src), dist = path.join(cwd, options.dist);
+    if (path.relative(cwd, options.src) == options.src) {
+        src = options.src;
+    }
+    if (path.relative(cwd, options.dist) == options.dist) {
+        dist = options.dist;
+    }
+    const compiler = new Compiler(src, dist, options.root || path.join(src, "../"));
 
     try {
         await compiler.build();
@@ -17,12 +25,12 @@ export async function build(options: { src: string; dist: string; watch?: boolea
         let watched = false;
         chokidar.watch(options.src, { ignored: options.watchIgnore })
             .on('ready', () => {
-                process.stdout.write(`正在监控目录${options.src} ^_^\n`);
+                console.log(chalk.yellow(`######## 正在监控目录${src} ########\n`));
                 watched = true;
             })
             .on('all', (event, file) => {
                 if (['change', 'add', 'unlink'].indexOf(event) !== -1 && watched) {
-                    process.stdout.write(`检测到${file}变动: ${event}，重新编译\n`);
+                    console.log(chalk.yellow(`检测到 ${file} ${event}，正在编译相关文件\n`));
                     compiler.rebuild(path.resolve(file).replace(/\\/g, '/'));
                 }
             });
@@ -40,8 +48,12 @@ export async function init(project: string, dist: string, language: string = "ts
     }
 }
 
-// build({
-//     src: "./test/src/component",
-//     dist: "./test/dist/component",
-//     watch: true
-// })
+if (!module.parent) {
+    const args = process.argv;
+    build({
+        src: args[4],
+        dist: args[6],
+        root: args[8],
+        watch: true
+    })
+}
