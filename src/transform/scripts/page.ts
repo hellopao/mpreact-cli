@@ -5,6 +5,8 @@ import * as jsxParser from "../lib/jsxParser";
 
 export default class Page extends Transformer {
 
+    jsx: string;
+
     async transform() {
         await this.createWxmlFile();
         await super.transform();
@@ -25,8 +27,8 @@ export default class Page extends Transformer {
     }
 
     async createWxmlFile() {
-        const jsx = await this.getJsxTemplate();
-        const wxml = this.getWxmlCode(jsx);
+        this.jsx = await this.getJsxTemplate();
+        const wxml = this.getWxmlCode(this.jsx);
         this.createFile(wxml, 'wxml');
     }
 
@@ -34,9 +36,19 @@ export default class Page extends Transformer {
         return jsxParser.parser(jsx, { props: ["state", "props"] });
     }
 
+    getEventHandlers() {
+        return jsxParser.getJsxEvents(this.jsx, { props: ["state", "props"] });
+    }
+
     getScriptCode() {
         const ctor = this.getModuleConstructor();
         let code = this.transpileTsCode();
+        const eventHandlers = this.getEventHandlers();
+        let events = ``;
+        // 有些事件不会触发
+        eventHandlers.forEach(item => {
+            events += `${item}: function(e){},`
+        });
         code += `
             Page({
                 onLoad: function(options) {
@@ -46,8 +58,10 @@ export default class Page extends Transformer {
                     page.setState(page.state || {}, () => {
                         page.title && page.setTitle(page.title);
                         page.mounted && page.mounted();
+                        this._page = page;
                     })
-                }
+                },
+                ${events}
             })
         `;
         return code;
