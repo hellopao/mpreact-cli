@@ -8,7 +8,8 @@ export default class Module extends Transformer {
     }
 
     async createScriptFile() {
-        return Promise.resolve();
+        const code = this.transpileTsCode();
+        this.createFile(code, 'js');
     }
 
     getModuleConfig()  {
