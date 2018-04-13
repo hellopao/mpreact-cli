@@ -56,28 +56,28 @@ export default abstract class Transformer {
             }
         });
         const moduleCtor = sourceFile.getClasses()[0];
-        moduleCtor.getDecorators().forEach(decorator => {
-            if (["AppConfig", "PageConfig"].includes(decorator.getName())) {
-                decorator.remove();
-            }
-        });
 
-        const members = moduleCtor.getMembers();
-        for (let member of members) {
-            if (member.getKind() === SyntaxKind.PropertyDeclaration) {
-                const name = (member as PropertyNamedNode).getName();
-                if (name == "template") {
-                    const children = member.getChildren();
-                    const isJsx = children.some(child => {
-                        return child.getKind() == SyntaxKind.JsxElement || child.getChildren().some(subChild => subChild.getKind() == SyntaxKind.JsxElement)
-                    })
-                    if (isJsx) {
-                        member.remove();
+        if (moduleCtor) {
+            moduleCtor.getDecorators().forEach(decorator => {
+                if (["AppConfig", "PageConfig"].includes(decorator.getName())) {
+                    decorator.remove();
+                }
+            });
+
+            const members = moduleCtor.getMembers();
+            for (let member of members) {
+                if (member.getKind() === SyntaxKind.PropertyDeclaration) {
+                    const name = (member as PropertyNamedNode).getName();
+                    if (name == "template") {
+                        const jsx = member.getFirstDescendantByKind(SyntaxKind.JsxElement);
+                        if (jsx) {
+                            member.remove();
+                        }
                     }
                 }
             }
-        }
 
+        }
         const emitOutput = sourceFile.getEmitOutput();
 
         let code;
@@ -119,23 +119,14 @@ export default abstract class Transformer {
 
         let template;
         const members = moduleCtor.getMembers();
-        // TODO
         for (let member of members) {
             if (member.getKind() === SyntaxKind.PropertyDeclaration) {
                 const name = (member as PropertyNamedNode).getName();
                 if (name == "template") {
-                    const children = member.getChildren();
-                    children.forEach(child => {
-                        if (child.getKind() == SyntaxKind.JsxElement) {
-                            template = child.getText();
-                        } else {
-                            child.getChildren().forEach(subChild => {
-                                if (subChild.getKind() == SyntaxKind.JsxElement) {
-                                    template = subChild.getText();
-                                }
-                            })
-                        }
-                    })
+                    const jsx = member.getFirstDescendantByKind(SyntaxKind.JsxElement);
+                    if (jsx) {
+                        template = jsx.getText();
+                    }
                 }
             }
         }
