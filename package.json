@@ -12,7 +12,8 @@
   ],
   "main": "./lib/index.js",
   "scripts": {
-    "build": "node node_modules/typescript/bin/tsc --skipLibCheck"
+    "build": "node node_modules/typescript/bin/tsc --skipLibCheck",
+    "dev": "node node_modules/typescript/bin/tsc --skipLibCheck -w"
   },
   "keywords": [
     "mpreact",
@@ -40,7 +41,7 @@
     "fs-extra": "^5.0.0",
     "glob": "^7.1.2",
     "less": "^3.0.1",
-    "mpreact": "^0.0.1",
+    "mpreact": "^0.0.2",
     "rollup": "^0.57.1",
     "rollup-plugin-typescript": "^0.8.1",
     "sass": "^1.1.1",
