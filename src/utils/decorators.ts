@@ -10,7 +10,7 @@ export function logger(message: string, getFile?: (ctx: any) => string) {
                 console.log(chalk.green(message, file, ', 耗时', `${Date.now() - start}`, '毫秒'));
                 return res;
             }).catch(err => {
-                console.log(chalk.red(`${message}失败`, file || err.id, err.message))
+                console.log(chalk.red(`${message}失败`, file || err.id, err.stack))
                 return null;
             })
         }
