@@ -53,7 +53,7 @@ export default class Compiler {
 
                 if (dependencies.length > 0) {
                     dependencies.forEach(id => {
-                        const dependency = fileModules.find(item => item.id === id && item.parent == fileModule.id);
+                        const dependency = fileModules.find(item => item.id === id && this.normalizeFile(item.parent) == this.normalizeFile(fileModule.id));
                         if (dependency) {
                             deps.push(...getDeps(dependency))
                         }
@@ -66,31 +66,34 @@ export default class Compiler {
 
             // 变动文件及其依赖
             const modules = [fileModule, ...getDeps(fileModule)];
-            for (let fileModule of modules) {
-                if (fileModule.type !== config.FileModuleType.STYLESHEET) {
-                    const script = new ScriptModule(fileModule.id, fileModule.type, this.compileOptions);
-                    await script.transform();
-                } else {
-                    const style = new StyleModule(fileModule.id, fileModule.parent, this.compileOptions);
-                    await style.transform();
-                }
-            }
+
+            await Promise.all(
+                modules.map(fileModule => {
+                    let moduleTransformer;
+                    if (fileModule.type !== config.FileModuleType.STYLESHEET) {
+                        moduleTransformer = new ScriptModule(fileModule.id, fileModule.type, this.compileOptions);
+                    } else {
+                        moduleTransformer = new StyleModule(fileModule.id, fileModule.parent, this.compileOptions);
+                    }
+                    return moduleTransformer.transform();
+                })
+            )
         } else {
             await this.bundleAssets();
         }
     }
 
     private async transform() {
-        for (let fileModule of this.fileModules) {
-            if (fileModule.type !== config.FileModuleType.STYLESHEET) {
-                const script = new ScriptModule(fileModule.id, fileModule.type, this.compileOptions);
-                await script.transform();
-            } else {
-                const style = new StyleModule(fileModule.id, fileModule.parent, this.compileOptions);
-                await style.transform();
-            }
-        }
         await Promise.all([
+            ...this.fileModules.map(fileModule => {
+                let moduleTransformer;
+                if (fileModule.type !== config.FileModuleType.STYLESHEET) {
+                    moduleTransformer = new ScriptModule(fileModule.id, fileModule.type, this.compileOptions);
+                } else {
+                    moduleTransformer = new StyleModule(fileModule.id, fileModule.parent, this.compileOptions);
+                }
+                return moduleTransformer.transform();
+            }),
             this.packTslib(),
             this.bundleAssets()
         ]);
@@ -109,11 +112,12 @@ export default class Compiler {
     async bundleAssets() {
         const fileModules = this.fileModules.map(item => item.id);
         const files = await this.getProjectFiles();
-        for (let item of files) {
-            if (!fileModules.includes(item) && path.basename(item) !== "tsconfig.json") {
-                await fs.copy(item, path.join(this.dist, path.relative(this.src, item)))
-            }
-        }
+
+        await Promise.all(files.filter(item => {
+            return !fileModules.includes(item) && path.basename(item) !== "tsconfig.json" && !config.APP_ENTRY_EXTNAMES.includes(path.extname(item));
+        }).map(item => {
+            return fs.copy(item, path.join(this.dist, path.relative(this.src, item)))
+        }))
     }
 
     @logger("解析项目模块")
@@ -121,11 +125,11 @@ export default class Compiler {
         const pageFiles = await this.getPageFiles();
         let modules: config.IFileModule[] = [];
 
-        for (let input of [this.appFile, ...pageFiles]) {
-            const bundle = await rollup.rollup({
+        await Promise.all([this.appFile, ...pageFiles].map(input => {
+            return rollup.rollup({
                 input,
                 plugins: [
-                    typescript({ typescript: ts, jsx: "react", include: ["*.ts+(|x)", "**/*.ts+(|x)", "*.js+(|x)", "**/*.js+(|x)"] }),
+                    typescript({ typescript: ts, jsx: "react", include: ["*.ts+(|x)", "**/*.ts+(|x)", "*.js+(|x)", "**/*.js+(|x)"].map(item => path.join(this.compileOptions.src, item)) }),
                     {
                         name: 'style',
                         transform(code, id: string) {
@@ -140,23 +144,23 @@ export default class Compiler {
                         this.handleNodeModule(warning.source)
                         return;
                     }
-                }
-            });
-            const bundleModules = (bundle as rollup.OutputChunk).modules.filter(item => item.id !== config.TS_HELPER_KEY);
-            modules.push(
-                ...bundleModules.map(item => {
-                    const dependencies = item.dependencies.filter(item => item !== config.TS_HELPER_KEY);
-                    const parent = bundleModules.find(module => module.dependencies.includes(item.id));
-                    return {
-                        id: this.normalizeFile(item.id),
-                        dependencies: dependencies.map(item => this.normalizeFile(item)),
-                        parent: parent ? parent.id : input,
-                        type: this.getModuleType(item.id, input)
-                    }
-                }).reverse()
-            );
-        }
-
+                },
+            }).then((bundle: rollup.OutputChunk) => {
+                const bundleModules = bundle.modules.filter(item => item.id !== config.TS_HELPER_KEY);
+                modules.push(
+                    ...bundleModules.map(item => {
+                        const dependencies = item.dependencies.filter(item => item !== config.TS_HELPER_KEY);
+                        const parent = bundleModules.find(module => module.dependencies.includes(item.id));
+                        return {
+                            id: this.normalizeFile(item.id),
+                            dependencies: dependencies.map(item => this.normalizeFile(item)),
+                            parent: parent ? parent.id : input,
+                            type: this.getModuleType(item.id, input)
+                        }
+                    }).reverse()
+                );
+            })
+        }));
 
         const styles = modules.filter(item => config.STYLE_MODULE_EXTNAMES.includes(path.extname(item.id)))
         const getStyleDeps = (parent: string, node: DepNode) => {
@@ -177,10 +181,11 @@ export default class Compiler {
         };
 
         styles.forEach(item => {
+            const type = path.extname(item.id) === '.less' ? 'less' : 'sass';
             const tree = dependencyTree({
                 filename: item.id,
                 directory: this.root
-            });
+            }, { type });
 
             modules.push(...getStyleDeps(item.id, tree[item.id] || tree[path.normalize(item.id)]).map(item => {
                 return {
