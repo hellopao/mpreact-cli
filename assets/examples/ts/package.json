@@ -12,7 +12,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "mpreact": "^0.0.1"
+    "mpreact": "^0.0.2"
   },
   "devDependencies": {
   }
