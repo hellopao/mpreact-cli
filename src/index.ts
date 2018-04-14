@@ -14,7 +14,7 @@ export async function build(options: { src: string; dist: string; root?: string;
     if (path.relative(cwd, options.dist) == options.dist) {
         dist = options.dist;
     }
-    const compiler = new Compiler(src, dist, options.root || path.join(src, "../"));
+    const compiler = new Compiler(src, dist, options.root || process.cwd());
 
     try {
         await compiler.build();
