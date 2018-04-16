@@ -129,7 +129,7 @@ export default class Compiler {
             return rollup.rollup({
                 input,
                 plugins: [
-                    typescript({ typescript: ts, jsx: "react", include: ["*.ts+(|x)", "**/*.ts+(|x)", "*.js+(|x)", "**/*.js+(|x)"].map(item => path.join(this.compileOptions.src, item)) }),
+                    typescript({ typescript: ts, experimentalDecorators: true, jsx: "react", include: ["*.ts+(|x)", "**/*.ts+(|x)", "*.js+(|x)", "**/*.js+(|x)"].map(item => path.join(this.compileOptions.src, item)) }),
                     {
                         name: 'style',
                         transform(code, id: string) {
