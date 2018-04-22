@@ -6,6 +6,8 @@ import * as ts from "typescript";
 import * as rollup from "rollup";
 import * as dependencyTree from "dependency-tree";
 import * as typescript from "rollup-plugin-typescript";
+import * as commonjs from "rollup-plugin-commonjs";
+import * as resolve from "rollup-plugin-node-resolve";
 import Project, { SourceFile } from "ts-simple-ast";
 
 import { logger } from "./utils/decorators";
@@ -64,11 +66,24 @@ export default class Compiler {
                 return deps;
             }
 
+            const addedModules = fileModules.filter(item => !this.fileModules.some(fileModule => item.id == fileModule.id));
             // 变动文件及其依赖
             const modules = [fileModule, ...getDeps(fileModule)];
+            if (addedModules.length > 0) {
+                addedModules.forEach(item => {
+                    modules.push(item, ...getDeps(item))
+                })
+            }
+
+            let result = [];
+            for (let fileModule of modules) {
+                if (!result.find(item => item.id === fileModule.id)) {
+                    result.push(fileModule)
+                }
+            }
 
             await Promise.all(
-                modules.map(fileModule => {
+                result.map(fileModule => {
                     let moduleTransformer;
                     if (fileModule.type !== config.FileModuleType.STYLESHEET) {
                         moduleTransformer = new ScriptModule(fileModule.id, fileModule.type, this.compileOptions);
@@ -129,7 +144,13 @@ export default class Compiler {
             return rollup.rollup({
                 input,
                 plugins: [
-                    typescript({ typescript: ts, experimentalDecorators: true, jsx: "react", include: ["*.ts+(|x)", "**/*.ts+(|x)", "*.js+(|x)", "**/*.js+(|x)"].map(item => path.join(this.compileOptions.src, item)) }),
+                    typescript({
+                        typescript: ts,
+                        experimentalDecorators: true,
+                        jsx: "react",
+                        include: ["*.ts+(|x)", "**/*.ts+(|x)", "*.js+(|x)", "**/*.js+(|x)"].map(item => path.join(this.compileOptions.src, item)),
+                        exclude: ['node_modules']
+                    }),
                     {
                         name: 'style',
                         transform(code, id: string) {
@@ -161,6 +182,15 @@ export default class Compiler {
                 );
             })
         }));
+
+        // TODO
+        for (let [index, fileModule] of modules.entries()) {
+            const dirs = fileModule.id.split('/');
+            if (dirs.includes('node_modules')) {
+                modules.splice(index, 1);
+                this.handleNodeModule(dirs[dirs.findIndex(item => item === 'node_modules') + 1]);
+            }
+        }
 
         const styles = modules.filter(item => config.STYLE_MODULE_EXTNAMES.includes(path.extname(item.id)))
         const getStyleDeps = (parent: string, node: DepNode) => {
@@ -211,7 +241,12 @@ export default class Compiler {
         const file = path.join(this.root, `/node_modules/${source}/package.json`);
         const pkg = await fs.readJSON(file);
         const res = await rollup.rollup({
-            input: path.join(path.dirname(file), pkg.main),
+            input: path.join(path.dirname(file), pkg.main || 'index.js'),
+            plugins: source == "mpreact" ? []: [resolve({
+                jsnext: true,
+                main: true,
+                browser: true,
+            }), commonjs()],
             onwarn: () => { }
         });
         res.write({
