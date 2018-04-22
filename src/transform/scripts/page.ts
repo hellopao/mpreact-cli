@@ -13,9 +13,9 @@ export default class Page extends Transformer {
     }
 
     async createConfigFile() {
-        const config = this.getModuleConfig();
+        let config = this.getModuleConfig();
         const components = await this.getDependComponents();
-        Object.assign(config, {
+        config = Object.assign({}, config, {
             usingComponents: components
         });
         this.createFile(JSON.stringify(config), 'json');
