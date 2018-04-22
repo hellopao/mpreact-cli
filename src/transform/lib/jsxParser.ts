@@ -22,17 +22,18 @@ const MP_EVENT_NAMES = [
 
 function getMemberExpression(expression: types.MemberExpression, context: { props: string[] }) {
     let code = generate(expression).code;
-    const objects = [];
-    let node = expression.object;
-    while (node) {
-        objects.push(generate(node).code);
-        node = (node as types.MemberExpression).object;
-    }
+    // const objects = [];
+    // let node = expression.object;
+    // while (node) {
+    //     objects.push(generate(node).code);
+    //     node = (node as types.MemberExpression).object;
+    // }
 
-    const ctx = objects[objects.length - 1];
-    if (ctx === 'this') {
-        code = code.replace(/^this\.(props|state)?\.?/,'')
-    }
+    // const ctx = objects[objects.length - 1];
+    // if (ctx === 'this') {
+    //     code = code.replace(/^this\.(props|state)?\.?/, '')
+    // }
+    code = code.replace(/(^|\b)this\.(props|state)?\.?/, '')
     return code;
 }
 
@@ -50,25 +51,37 @@ export function parser(code: string, context: { props: string[] }) {
         JSXAttribute(attribute) {
             const { value, name } = attribute.node;
 
-            if (/^wx_/.test(name.name as string)) {
-                attribute.node.name.name = (name.name as string).replace(/^wx_/, 'wx:').replace(/\_/g, '-');
+            const attrName = name.name as string;
+            if (/^wx_/.test(attrName)) {
+                attribute.node.name.name = attrName.replace(/^wx_/, 'wx:').replace(/\_/g, '-');
+            }
+
+            if (attrName == 'className') {
+                attribute.node.name.name = 'class';
             }
 
             if (value) {
                 const { expression } = value as types.JSXExpressionContainer;
                 if (expression) {
-                    if (MP_EVENT_NAMES.includes(name.name as string)) { 
+                    if (/^on/.test(attrName) && /^this\.(?!(state|props))/.test(generate(expression).code)) {
+                        attribute.node.name.name = attrName.replace(/^on/, 'bind').toLowerCase();
                         attribute.node.value = types.stringLiteral(`${getMemberExpression(expression as types.MemberExpression, context)}`);
                     } else {
-                        attribute.node.value = types.stringLiteral(`{{${getMemberExpression(expression as types.MemberExpression, context)}}}`);
+                        if (MP_EVENT_NAMES.includes(attrName)) {
+                            attribute.node.value = types.stringLiteral(`${getMemberExpression(expression as types.MemberExpression, context)}`);
+                        } else {
+                            attribute.node.value = types.stringLiteral(`{{${getMemberExpression(expression as types.MemberExpression, context)}}}`);
+                        }
                     }
                 }
             }
         },
     });
 
+    code = generate(ast).code;
+    
     // TODO
-    return generate(ast).code.replace(/;$/, '');
+    return code.replace(/;$/, '');
 }
 
 export function getJsxEvents(code: string, context: { props: string[] }) {
@@ -77,7 +90,8 @@ export function getJsxEvents(code: string, context: { props: string[] }) {
     traverse(ast, {
         JSXAttribute(attribute) {
             const { value, name } = attribute.node;
-            if (MP_EVENT_NAMES.includes(name.name as string)) {
+            const attrName = name.name as string;
+            if (MP_EVENT_NAMES.includes(attrName) || /^on/.test(attrName) && /^this\.(?!(state|props))/.test(generate((value as types.JSXExpressionContainer).expression).code)) {
                 if (value) {
                     const { expression } = value as types.JSXExpressionContainer;
                     const event = getMemberExpression(expression as types.MemberExpression, context);
