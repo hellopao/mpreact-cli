@@ -6,15 +6,14 @@ import chalk from "chalk";
 import Compiler from "./build";
 
 export async function build(options: { src: string; dist: string; root?: string; watch?: boolean; ignores?: string[]; watchIgnore?: RegExp }) {
-    const cwd = process.cwd();
+    let cwd = process.cwd();
     let src = path.join(cwd, options.src), dist = path.join(cwd, options.dist);
-    // if (path.relative(cwd, options.src) == options.src) {
-    //     src = options.src;
-    // }
-    // if (path.relative(cwd, options.dist) == options.dist) {
-    //     dist = options.dist;
-    // }
-    const compiler = new Compiler(src, dist, options.root || process.cwd());
+
+    if (options.root && options.root !== cwd) {
+        src = options.src, dist = options.dist;
+    }
+   
+    const compiler = new Compiler(src, dist, options.root || cwd);
 
     try {
         await compiler.build();

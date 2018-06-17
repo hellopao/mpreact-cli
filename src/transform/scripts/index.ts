@@ -33,7 +33,7 @@ export default abstract class Transformer {
 
     async transform() {
         await this.createConfigFile();
-        await this.createScriptFile()
+        await this.createScriptFile();
     }
 
     getModuleConstructor() {
@@ -141,7 +141,7 @@ export default abstract class Transformer {
 
     async createFile(code: string, extname: string) {
         const file = this.getTargetFile(this.file, extname);
-        await fs.outputFile(file, code);
+        return fs.outputFile(file, code);
     }
 
     private getTargetFile(file: string, ext: string) {

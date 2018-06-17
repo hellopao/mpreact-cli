@@ -1,12 +1,9 @@
 import * as path from "path";
 import * as vm from "vm";
-import * as glob from "glob";
+import * as glob from "fast-glob";
 import * as fs from "fs-extra";
-import * as ts from "typescript";
-import * as rollup from "rollup";
-import * as dependencyTree from "dependency-tree";
-import * as typescript from "rollup-plugin-typescript";
-import Project, { SourceFile } from "ts-simple-ast";
+import Project from "ts-simple-ast";
+import { cruise } from "dependency-cruiser";
 
 import { logger } from "./utils/decorators";
 import ScriptModule from "./transform/script";
@@ -14,15 +11,13 @@ import StyleModule from "./transform/style";
 
 import * as config from "./config";
 
-interface DepNode {
-    [id: string]: DepNode | {};
-}
-
 export default class Compiler {
 
     compileOptions: config.CompileOptions;
 
     appFile: string;
+
+    pageFiles: string[];
 
     fileModules: config.IFileModule[];
 
@@ -43,78 +38,94 @@ export default class Compiler {
     @logger('编译变动文件')
     public async rebuild(file: string) {
         const fileModules = await this.getFileModules();
-        const fileModule = fileModules.find(item => item.id === file);
+        const modulesTree = {}, prevModulesTree = {};
+        fileModules.forEach(item => {
+            modulesTree[item.id] = item;
+        });
+        this.fileModules.forEach(item => {
+            prevModulesTree[item.id] = item;
+        });
+        let fileModule = fileModules.find(item => this.normalizeFile(item.id) === this.normalizeFile(file));
         // 变动的是小程序模块文件
         if (fileModule) {
-            const getDeps = (fileModule: config.IFileModule) => {
-                const deps = [];
-                const dependencies = fileModule.dependencies
-                    .filter(item => item.includes(this.normalizeFile(this.src)))
-
-                if (dependencies.length > 0) {
-                    dependencies.forEach(id => {
-                        const dependency = fileModules.find(item => item.id === id && this.normalizeFile(item.parent) == this.normalizeFile(fileModule.id));
-                        if (dependency) {
-                            deps.push(...getDeps(dependency))
+            function getParents(item) {
+                const parents = [];
+                if (item.parents.length > 0) {
+                    item.parents.forEach(parent => {
+                        if (parent !== fileModule.id) {
+                            parents.push(...getParents(modulesTree[parent]))
                         }
                     })
                 } else {
-                    deps.push(fileModule)
+                    if (!parents.includes(item.id)) {
+                        parents.push(item);
+                    }
                 }
-                return deps;
+                return parents;
             }
 
-            // 变动文件及其依赖
-            const modules = [fileModule, ...getDeps(fileModule)];
+            const modules = [];
 
-            await Promise.all(
-                modules.map(fileModule => {
-                    let moduleTransformer;
-                    if (fileModule.type !== config.FileModuleType.STYLESHEET) {
-                        moduleTransformer = new ScriptModule(fileModule.id, fileModule.type, this.compileOptions);
-                    } else {
-                        moduleTransformer = new StyleModule(fileModule.id, fileModule.parent, this.compileOptions);
-                    }
-                    return moduleTransformer.transform();
-                })
-            )
+            if (config.STYLE_MODULE_EXTNAMES.includes(path.extname(fileModule.id))) {
+                // 引用变动模块的模块
+                modules.push(...getParents(fileModule));
+            }
+
+            // 变动模块引用的模块
+            fileModules.forEach(item => {
+                if (item.parents.includes(fileModule.id) && config.STYLE_MODULE_EXTNAMES.includes(path.extname(item.id))) {
+                    modules.push(item);
+                }
+            });
+
+            return this.transformModules(modules.concat(fileModule));
         } else {
-            await this.bundleAssets();
+            return this.bundleAssets();
         }
     }
 
+    @logger('编译项目')
     private async transform() {
-        await Promise.all([
-            ...this.fileModules.map(fileModule => {
-                let moduleTransformer;
-                if (fileModule.type !== config.FileModuleType.STYLESHEET) {
-                    moduleTransformer = new ScriptModule(fileModule.id, fileModule.type, this.compileOptions);
-                } else {
-                    moduleTransformer = new StyleModule(fileModule.id, fileModule.parent, this.compileOptions);
-                }
-                return moduleTransformer.transform();
-            }),
+        await this.transformModules(this.fileModules);
+        return Promise.all([
             this.packTslib(),
             this.bundleAssets()
-        ]);
+        ])
     }
 
-    private async getProjectFiles() {
-        return new Promise<string[]>((resolve, reject) => {
-            glob(`${this.src}/**/*.*`, (err, files) => {
-                if (err) { return reject(err) }
-                resolve(files.map(item => this.normalizeFile(item)));
-            })
-        });
+    private async transformModules(modules: config.IFileModule[]) {
+        // return Promise.all(
+        //     modules.map((fileModule: config.IFileModule) => {
+        //         let moduleTransformer: ScriptModule | StyleModule;
+        //         if (fileModule.type !== config.FileModuleType.STYLESHEET) {
+        //             moduleTransformer = new ScriptModule(fileModule, this.compileOptions);
+        //         } else {
+        //             moduleTransformer = new StyleModule(fileModule.id, fileModule.parents, this.compileOptions);
+        //         }
+        //         return moduleTransformer.transform()
+        //     })
+        // )
+        for (let fileModule of modules) {
+            let moduleTransformer: ScriptModule | StyleModule;
+            if (fileModule.type !== config.FileModuleType.STYLESHEET) {
+                moduleTransformer = new ScriptModule(fileModule, this.compileOptions);
+            } else {
+                moduleTransformer = new StyleModule(fileModule.id, fileModule.parents, this.compileOptions);
+            }
+            await moduleTransformer.transform()
+        }
     }
 
     @logger("打包其他文件")
     async bundleAssets() {
         const fileModules = this.fileModules.map(item => item.id);
-        const files = await this.getProjectFiles();
+        const files = await glob<string>(`${this.src}/**/*.*`);
 
-        await Promise.all(files.filter(item => {
-            return !fileModules.includes(item) && path.basename(item) !== "tsconfig.json" && !config.APP_ENTRY_EXTNAMES.includes(path.extname(item));
+        return Promise.all(files.filter(item => {
+            return !fileModules.includes(item)
+                && path.basename(item) !== "tsconfig.json"
+                && !config.STYLE_MODULE_EXTNAMES.includes(path.extname(item))
+                && !config.APP_ENTRY_EXTNAMES.includes(path.extname(item));
         }).map(item => {
             return fs.copy(item, path.join(this.dist, path.relative(this.src, item)))
         }))
@@ -122,114 +133,56 @@ export default class Compiler {
 
     @logger("解析项目模块")
     private async getFileModules(): Promise<config.IFileModule[]> {
-        const pageFiles = await this.getPageFiles();
-        let modules: config.IFileModule[] = [];
+        this.pageFiles = await this.getPageFiles();
 
-        await Promise.all([this.appFile, ...pageFiles].map(input => {
-            return rollup.rollup({
-                input,
-                plugins: [
-                    typescript({ typescript: ts, jsx: "react", include: ["*.ts+(|x)", "**/*.ts+(|x)", "*.js+(|x)", "**/*.js+(|x)"].map(item => path.join(this.compileOptions.src, item)) }),
-                    {
-                        name: 'style',
-                        transform(code, id: string) {
-                            if (config.STYLE_MODULE_EXTNAMES.includes(path.extname(id))) {
-                                return '';
-                            }
-                        }
-                    },
-                ],
-                onwarn: (warning: rollup.RollupWarning) => {
-                    if (warning.code == "UNRESOLVED_IMPORT") {
-                        this.handleNodeModule(warning.source)
-                        return;
-                    }
-                },
-            }).then((bundle: rollup.OutputChunk) => {
-                const bundleModules = bundle.modules.filter(item => item.id !== config.TS_HELPER_KEY);
-                modules.push(
-                    ...bundleModules.map(item => {
-                        const dependencies = item.dependencies.filter(item => item !== config.TS_HELPER_KEY);
-                        const parent = bundleModules.find(module => module.dependencies.includes(item.id));
-                        return {
-                            id: this.normalizeFile(item.id),
-                            dependencies: dependencies.map(item => this.normalizeFile(item)),
-                            parent: parent ? parent.id : input,
-                            type: this.getModuleType(item.id, input)
-                        }
-                    }).reverse()
-                );
-            })
-        }));
+        const { dependencies } = cruise([this.appFile, ...this.pageFiles].map(item => path.relative(this.root, item)), {
+            //@ts-ignore
+            baseDir: this.root
+        })
 
-        const styles = modules.filter(item => config.STYLE_MODULE_EXTNAMES.includes(path.extname(item.id)))
-        const getStyleDeps = (parent: string, node: DepNode) => {
-            const deps = [];
-            const children = Object.keys(node);
-            if (children.length > 0) {
-                children.forEach(child => {
-                    deps.push({
-                        id: this.normalizeFile(child),
-                        parent: this.normalizeFile(parent)
-                    })
-                    if (Object.keys(node[child]).length > 0) {
-                        deps.push(...getStyleDeps(child, node[child]))
-                    }
-                })
-            }
-            return deps;
-        };
+        const modules = [];
 
-        styles.forEach(item => {
-            const type = path.extname(item.id) === '.less' ? 'less' : 'sass';
-            const tree = dependencyTree({
-                filename: item.id,
-                directory: this.root
-            }, { type });
+        dependencies.forEach(item => {
+            const parents = dependencies.filter(mod => mod.dependencies.map(dep => dep.resolved).includes(item.source));
 
-            modules.push(...getStyleDeps(item.id, tree[item.id] || tree[path.normalize(item.id)]).map(item => {
-                return {
-                    ...item,
-                    type: config.FileModuleType.STYLESHEET,
-                    dependencies: []
+            if (this.isNpmModule(item.source)) {
+                if (parents.every(item => !this.isNpmModule(item.source))) {
+                    modules.push({
+                        id: item.source,
+                        dependencies: item.dependencies,
+                        parents: parents || [],
+                        type: config.FileModuleType.NPM_MODULE
+                    });
                 }
-            }))
-        });
+                return;
+            }
+            const input = path.join(this.root, item.source);
+            modules.push({
+                id: input,
+                dependencies: item.dependencies.map(dep => {
+                    if (dep.dependencyTypes.includes('npm')) {
+                        return dep.resolved;
+                    }
+                    return path.join(this.root, dep.resolved)
+                }),
+                parents: parents.length > 0 ? parents.map(item => path.join(this.root, item.source)) : [],
+                type: this.getModuleType(input)
+            })
+        })
 
-        return Array.from(new Set(modules));
-    }
-
-    handleNodeModule(source: string) {
-        if (!/^\./.test(source) && !this.bundledDependencies.includes(source)) {
-            this.bundleNodeModule(source);
-            this.bundledDependencies.push(source)
-        }
-    }
-
-    @logger('打包第三方模块')
-    async bundleNodeModule(source: string) {
-        const file = path.join(this.root, `/node_modules/${source}/package.json`);
-        const pkg = await fs.readJSON(file);
-        const res = await rollup.rollup({
-            input: path.join(path.dirname(file), pkg.main),
-            onwarn: () => { }
-        });
-        res.write({
-            file: path.join(this.dist, `/${this.compileOptions.vendors}/${source}/index.js`),
-            format: "cjs"
-        });
+        return modules;
     }
 
     @logger('打包tslib')
     async packTslib() {
-        await fs.copy(path.join(__dirname, "../assets/tslib.es6.js"), path.join(this.dist, `/${this.compileOptions.vendors}/tslib/index.js`))
+        return fs.copy(path.join(__dirname, "../assets/tslib.es6.js"), path.join(this.dist, `/${this.compileOptions.vendors}/tslib/index.js`))
     }
 
-    private getModuleType(file: string, base: string) {
+    private getModuleType(file: string) {
         if (file == this.appFile) {
             return config.FileModuleType.APP;
         }
-        if (file == base) {
+        if (this.pageFiles.includes(file)) {
             return config.FileModuleType.PAGE;
         }
         const extname = path.extname(file);
@@ -248,6 +201,10 @@ export default class Compiler {
         const decorators = classDeclaration.getDecorators();
         const config = decorators.find(item => item.getName() == "AppConfig").getArguments()[0];
         return vm.runInThisContext(`config = ${config.getText()}`);
+    }
+
+    private isNpmModule(id: string) {
+        return id.includes('node_modules') || !/\..*$/.test(id)
     }
 
     private normalizeFile(file: string) {

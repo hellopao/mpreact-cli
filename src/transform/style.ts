@@ -10,42 +10,42 @@ import * as config from "../config";
 
 export default class StyleModule {
 
-    constructor(public file: string, public parent: string, public options: config.CompileOptions) {
+    constructor(public file: string, public parents: string[], public options: config.CompileOptions) {
+        if (this.parents.every(item => config.STYLE_MODULE_EXTNAMES.includes(path.extname(item)))) {
+            this.parents = [parents[0]];
+        }
     }
 
     async transform() {
         const extname = path.extname(this.file);
         switch (extname) {
             case ".css":
-                await this.transformCss();
-                break;
+                return this.transformCss();
             case ".scss":
-                await this.transformScss();
-                break;
+                return this.transformScss();
             case ".less":
-                await this.transformLess();
+                return this.transformLess();
             default:
-                await this.transformCss();
-                break;
+                return this.transformCss();
         }
     }
 
     @logger('编译css文件', ctx => ctx.file)
     private async transformCss() {
-        const css = new Css(this.file, this.parent, this.options);
-        await css.transform();
+        const css = new Css(this.file, this.parents, this.options);
+        return css.transform();
     }
 
     @logger('编译scss文件', ctx => ctx.file)
     private async transformScss() {
-        const scss = new Scss(this.file, this.parent, this.options);
-        await scss.transform();
+        const scss = new Scss(this.file, this.parents, this.options);
+        return scss.transform();
     }
 
     @logger('编译less文件', ctx => ctx.file)
     private async transformLess() {
-        const less = new Less(this.file, this.parent, this.options);
-        await less.transform();
+        const less = new Less(this.file, this.parents, this.options);
+        return less.transform();
     }
 
 }

@@ -17,18 +17,18 @@ export default class Component extends Transformer {
         Object.assign(config, {
             usingComponents: components
         });
-        this.createFile(JSON.stringify(config), 'json');
+        return this.createFile(JSON.stringify(config), 'json');
     }
 
     async createScriptFile() {
         const code = this.getScriptCode();
-        this.createFile(code, 'js');
+        return this.createFile(code, 'js');
     }
 
     async createWxmlFile() {
         const jsx = await this.getJsxTemplate();
         const wxml = this.getWxmlCode(jsx);
-        this.createFile(wxml, 'wxml');
+        return this.createFile(wxml, 'wxml');
     }
 
     getEventHandlers() {
@@ -59,13 +59,21 @@ export default class Component extends Transformer {
         })
     }
 
+    
+    getLifeCycleHandlers() {
+        const classDeclaration = this.sourceFile.getClasses()[0];
+        const methods = (classDeclaration.getMethods()||[]).map(item => item.getName());
+        return methods.filter(item => ["created", "ready", "moved", "detached"].includes(item))
+    }
+
     getScriptCode() {
         const ctor = this.getModuleConstructor();
         const props = this.getComponentProps();
+        const lifeCycleHandlers = this.getLifeCycleHandlers();
         const eventHandlers = this.getEventHandlers();
         this.transformCustomEvents(props);
         let code = this.transpileTsCode();
-        let properties = '', events = '';
+        let properties = '', events = '', lifeCycles = '';
         Object.keys(props).forEach(item => {
             let type, value;
             const prop = props[item];
@@ -96,6 +104,12 @@ export default class Component extends Transformer {
                 }
                 return false;
             },`
+        });
+        lifeCycleHandlers.forEach(item => {
+            lifeCycles += 
+                `${item}: function() {
+                    this._component[${item}] && this._component[${item}]();
+                },`
         })
         code += `
             Component({
@@ -109,11 +123,13 @@ export default class Component extends Transformer {
                         component.mounted && component.mounted();
                     });
                 },
+                ${lifeCycles}
                 methods: {
                     ${events}
                     _onPropsChange: function(type, val, oldVal) {
-                        type = type.charAt(0).toUpperCase() + type.slice(1);
                         try {
+                            this._component.props[type] = val;
+                            type = type.charAt(0).toUpperCase() + type.slice(1);
                             const observer = this._component['on' + type + 'Change'];
                             observer && observer.bind(this._component)(val, oldVal);
                         } catch (err) {

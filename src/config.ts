@@ -15,13 +15,14 @@ export const enum FileModuleType {
     PAGE,
     COMPONENT,
     COMMON_MODULE,
-    STYLESHEET
+    STYLESHEET,
+    NPM_MODULE
 }
 
 export interface IFileModule {
     id: string;
     dependencies: Array<string>;
-    parent: string;
+    parents: string[];
     type: FileModuleType
 }
 

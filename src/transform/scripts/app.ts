@@ -6,16 +6,30 @@ export default class App extends Transformer {
 
     async createConfigFile() {
         const config = this.getModuleConfig();
-        this.createFile(JSON.stringify(config), 'json');
+        return this.createFile(JSON.stringify(config), 'json');
     }
 
     async createScriptFile() {
         const code = this.getScriptCode();
-        this.createFile(code, 'js');
+        return this.createFile(code, 'js');
+    }
+
+    getLifeCycleHandlers() {
+        const classDeclaration = this.sourceFile.getClasses()[0];
+        const methods = (classDeclaration.getMethods()||[]).map(item => item.getName());
+        return methods.filter(item => ["onShow", "onHide", "onError", "onPageNotFound"].includes(item))
     }
 
     getScriptCode() {
         const ctor = this.getModuleConstructor();
+        const lifeCycleHandlers = this.getLifeCycleHandlers();
+        let lifeCycles = ``;
+        lifeCycleHandlers.forEach(item => {
+            lifeCycles += 
+                `${item}: function() {
+                    this._component[${item}] && this._component[${item}]();
+                },`
+        })
         let code = this.transpileTsCode();
         code += `
             App({
@@ -23,7 +37,8 @@ export default class App extends Transformer {
                     this.options = options;
                     const app = new ${ctor}(this, options);
                     app.mounted();
-                }
+                },
+                ${lifeCycles}
             })
         `;
         return code;

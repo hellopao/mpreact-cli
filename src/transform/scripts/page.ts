@@ -2,6 +2,7 @@ import * as vm from "vm";
 
 import Transformer from "./";
 import * as jsxParser from "../lib/jsxParser";
+import { logger } from "../../utils/decorators";
 
 export default class Page extends Transformer {
 
@@ -13,23 +14,23 @@ export default class Page extends Transformer {
     }
 
     async createConfigFile() {
-        const config = this.getModuleConfig();
+        let config = this.getModuleConfig();
         const components = await this.getDependComponents();
-        Object.assign(config, {
+        config = Object.assign({}, config, {
             usingComponents: components
         });
-        this.createFile(JSON.stringify(config), 'json');
+        return this.createFile(JSON.stringify(config), 'json');
     }
 
     async createScriptFile() {
         const code = this.getScriptCode();
-        this.createFile(code, 'js');
+        return this.createFile(code, 'js');
     }
 
     async createWxmlFile() {
         this.jsx = await this.getJsxTemplate();
         const wxml = this.getWxmlCode(this.jsx);
-        this.createFile(wxml, 'wxml');
+        return this.createFile(wxml, 'wxml');
     }
 
     getWxmlCode(jsx: string) {
@@ -40,8 +41,15 @@ export default class Page extends Transformer {
         return jsxParser.getJsxEvents(this.jsx, { props: ["state", "props"] });
     }
 
+    getLifeCycleHandlers() {
+        const classDeclaration = this.sourceFile.getClasses()[0];
+        const methods = (classDeclaration.getMethods()||[]).map(item => item.getName());
+        return methods.filter(item => ['onShow', 'onReady', 'onHide', 'onUnload', 'onPullDownRefresh', 'onReachBottom', 'onShareAppMessage'].includes(item))
+    }
+
     getScriptCode() {
         const ctor = this.getModuleConstructor();
+        const lifeCycleHandlers = this.getLifeCycleHandlers();
         let code = this.transpileTsCode();
         const eventHandlers = this.getEventHandlers();
         let events = ``;
@@ -49,17 +57,23 @@ export default class Page extends Transformer {
         eventHandlers.forEach(item => {
             events += `${item}: function(e){},`
         });
+        lifeCycleHandlers.forEach(item => {
+            events += `${item}: function(){
+                this._page[${item}] && this._page[${item}]()
+            },`
+        })
         code += `
             Page({
                 onLoad: function(options) {
                     const page = new ${ctor}(this, options);
+                    this._page = page;
 
                     // 设置默认值
                     page.setState(page.state || {}, () => {
                         page.title && page.setTitle(page.title);
                         page.mounted && page.mounted();
-                        this._page = page;
-                    })
+                    });
+
                 },
                 ${events}
             })
