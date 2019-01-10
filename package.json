@@ -1,6 +1,6 @@
 {
   "name": "mpreact-cli",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "description": "cli for mpreact",
   "bin": {
     "mpreact": "./bin/index.js"
@@ -41,7 +41,7 @@
     "fast-glob": "^2.2.2",
     "fs-extra": "^5.0.0",
     "less": "^3.0.4",
-    "mpreact": "^0.0.3",
+    "mpreact": "^0.0.5",
     "rollup": "^0.57.1",
     "rollup-plugin-commonjs": "^9.1.3",
     "rollup-plugin-node-resolve": "^3.3.0",
